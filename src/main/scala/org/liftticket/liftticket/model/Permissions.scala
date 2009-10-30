@@ -30,4 +30,5 @@ object Permissions extends Enumeration {
   
   // Administration permissions
   val EditAllUsers = Value(7, "Edit All Users")
+  val EditConfiguration = Value(8,"Edit Configuration")
 }

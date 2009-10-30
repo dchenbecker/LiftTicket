@@ -29,6 +29,9 @@ class User extends MegaProtoUser[User] with OneToMany[Long,User] with ManyToMany
     with Owned[UserPermission] with Cascade[UserPermission]
     
   object roles extends MappedManyToMany(UserRole, UserRole.user, UserRole.role, Role)
+  
+  def hasPermission(perm : Permissions.Value) = permissions.all.exists(_.permission == perm) ||
+    roles.all.exists(_.permissions.all.exists(_.permission == perm))
 }
 
 /**
@@ -36,7 +39,8 @@ class User extends MegaProtoUser[User] with OneToMany[Long,User] with ManyToMany
  * custom retrieval methods.
  */
 object User extends User with MetaMegaProtoUser[User] {
-  
+  override def hasPermission(perm : Permissions.Value) =
+    currentUser.map(_.hasPermission(perm)) openOr false
 }
 
 /**
@@ -60,4 +64,4 @@ class UserRole extends LongKeyedMapper[UserRole] with IdPK {
   object role extends MappedLongForeignKey(this, Role)
   object user extends MappedLongForeignKey(this, User)
 }
-object UserRole extends UserRole with LongKeyedMetaMapper[UserRole] 
+object UserRole extends UserRole with LongKeyedMetaMapper[UserRole]
