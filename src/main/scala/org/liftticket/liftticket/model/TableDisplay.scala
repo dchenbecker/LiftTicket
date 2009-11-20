@@ -15,28 +15,18 @@
  */
 package org.liftticket.liftticket.model
 
+import _root_.scala.xml.NodeSeq
 import _root_.net.liftweb.mapper.{KeyedMapper,Mapper}
 
-trait TableDisplay[KeyType, OwnerType <: KeyedMapper[KeyType,OwnerType]] extends KeyedMapper[KeyType, OwnerType] {
+/**
+ * Mixing this trait into a mapper makes the asHtml method return a table
+ */
+trait TableDisplay[KeyType, OwnerType <: KeyedMapper[KeyType,OwnerType]] 
+    extends KeyedMapper[KeyType, OwnerType] with AjaxEditableMapper[OwnerType] {
   self : OwnerType =>
   
-  def showPrimaryKey = false
-  
-  private def fields = 
-    if (showPrimaryKey) {
-      primaryKeyField :: formFields
-    } else {
-      formFields
-    }
-  
-  override def asHtml = {
-    <table>
-      { for (field <- fields) yield {
-          <tr>
-            <th>{field.displayName}</th><td>{field.asHtml}</td>
-          </tr>
-        }    
-      }
-    </table>
-  }
+  override def displayWrap(fields : NodeSeq) = <table>{fields}</table>
+    
+  override def displayField(label : NodeSeq, content : NodeSeq) = 
+    <tr><th>{label}</th><td>{content}</td></tr>
 }

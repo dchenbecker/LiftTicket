@@ -9,7 +9,7 @@
   <description>A ticketing system built in Lift and inspired by Trac</description>
   <inceptionYear>2009</inceptionYear>
   <properties>
-    <scala.version>2.7.5</scala.version>
+    <scala.version>2.7.7</scala.version>
   </properties>
 
   <repositories>
@@ -75,9 +75,9 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-    	<groupId>org.apache.derby</groupId>
-    	<artifactId>derby</artifactId>
-    	<version>10.5.3.0_1</version>
+    	<groupId>com.h2database</groupId>
+    	<artifactId>h2</artifactId>
+    	<version>1.2.122</version>
     </dependency>
   </dependencies>
   <developers>

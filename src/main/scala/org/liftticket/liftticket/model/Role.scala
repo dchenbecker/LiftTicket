@@ -15,7 +15,11 @@
  */
 package org.liftticket.liftticket.model
 
+import _root_.scala.xml.NodeSeq
+
 import _root_.net.liftweb.mapper._
+import _root_.net.liftweb.common.{Box,Empty,Full}
+import _root_.net.liftweb.http.SHtml
 
 /**
  * This class represents a role that aggregates permissions to simplify the
@@ -26,7 +30,21 @@ class Role extends LongKeyedMapper[Role] with IdPK with OneToMany[Long,Role] {
   
   object name extends MappedString(this, 200)
   object permissions extends MappedOneToMany(RolePermission,RolePermission.role)
-  	with Owned[RolePermission] with Cascade[RolePermission]
+  	with Owned[RolePermission] with Cascade[RolePermission] {
+  	  def toForm : NodeSeq = {
+  	    val currentChoices = this.all.map(_.permission.is.id.toString).toSeq 
+        
+        val allChoices = Permissions.elements.toList.map {perm => (perm.id.toString,perm.toString)}
+        
+        SHtml.multiSelect(allChoices, currentChoices, { selected : List[String] =>
+                            this.clear
+                            selected.foreach { item =>
+                              val newPerm = RolePermission.create.permission(Permissions(item.toInt))
+                              this += newPerm
+                            }
+                          })
+  	  }
+  	}
 }
 object Role extends Role with LongKeyedMetaMapper[Role]
 

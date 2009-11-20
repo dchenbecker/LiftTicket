@@ -22,13 +22,11 @@ import _root_.net.liftweb.util.Log
  * This entity represents a particular module or area of the system so that tickets
  * can be more easily classified.
  */
-class Module extends LongKeyedMapper[Module] with TableDisplay[Long,Module] with IdPK with OneToMany[Long,Module] {
+class Module extends LongKeyedMapper[Module] with IdPK with OneToMany[Long,Module] {
   def getSingleton = Module
   
-  override def showPrimaryKey = true
-  
-  object name extends MappedString(this,200) with LoggedAjaxEditableField[String,Module]
-  object description extends MappedTextarea(this,4000) with LoggedAjaxEditableField[String,Module] {
+  object name extends MappedString(this,200)
+  object description extends MappedTextarea(this,4000) {
     override def textareaCols = 80
     override def textareaRows = 6
   }

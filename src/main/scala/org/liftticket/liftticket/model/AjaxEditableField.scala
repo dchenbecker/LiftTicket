@@ -17,7 +17,7 @@ package org.liftticket.liftticket.model
 
 import _root_.scala.xml.{Node,NodeSeq,Text}
 
-import _root_.net.liftweb.mapper.{MappedField,Mapper}
+import _root_.net.liftweb.mapper.{AjaxEditableField,MappedField,Mapper}
 import _root_.net.liftweb.util.{Helpers,Log}
 import _root_.net.liftweb.http.{js,SHtml}
 import js.{jquery,JsCmd,JsCmds,JE}
@@ -27,67 +27,51 @@ import JE.Str
 import JqJsCmds.{Hide,Show}
 
 /**
- * This object defines some AJAX helper methods to simplify form handling.
+ * This trait can be added to an existing Mapper class to allow the entire mapper
+ * to be displayed with ajax editable fields.
  */
-object AjaxUtils {
-  /**
-   * This method generates an AJAX editable field. Normally, the displayContents
-   * will be shown, with an "Edit" button. If the "Edit" button is clicked, the field
-   * will be replaced with the edit form, along with an "OK" and "Cancel" button. 
-   * If the OK button is pressed, the form fields are submitted and the onSubmit
-   * function is called, and then the displayContents are re-run to get a new display.
-   * If cancel is pressed then the original displayContents are re-shown.
-   */
-  def editable (displayContents : => NodeSeq, editForm : => NodeSeq, onSubmit : () => Unit) : NodeSeq = {
-	val divName = Helpers.nextFuncName
-	val dispName = divName + "_display"
-	val editName = divName + "_edit"
- 
-	def swapJsCmd (show : String, hide : String) : JsCmd = Show(show) & Hide(hide) 
- 
-    def setAndSwap (show : String, showContents : => NodeSeq, hide : String) : JsCmd =
-      (SHtml.ajaxCall(Str("ignore"), {ignore : String => SetHtml(show, showContents)})._2.cmd & swapJsCmd(show,hide))
-      
-    def displayMarkup : NodeSeq = 
-      displayContents ++ Text(" ") ++ 
-      <input value="Edit" type="button" onclick={setAndSwap(editName, editMarkup, dispName).toJsCmd + " return false;"} /> 
-    
-    def editMarkup : NodeSeq = {
-      val formData = 
-        editForm ++ 
-        <input type="submit" value="OK" /> ++ 
-        SHtml.hidden(onSubmit) ++
-        <input type="button" onclick={swapJsCmd(dispName,editName).toJsCmd + " return false;"} value="Cancel" />
-      
-      SHtml.ajaxForm(formData, 
-                     Noop, 
-                     setAndSwap(dispName, displayMarkup, editName))
-    }
-      
-    <div>
-      <div id={dispName}>
-        {displayMarkup}
-      </div>
-      <div id={editName} style="display: none;">
-        {editMarkup}
-      </div>
-    </div>    
-  }
-}
-/**
- * This trait can be added to existing Mapper fields to make them use AjaxUtils.editable
- * for field display.
- */
-trait AjaxEditableField[FieldType,OwnerType <: Mapper[OwnerType]] extends MappedField[FieldType,OwnerType] {
-  override def asHtml : Node = 
-    <xml:group>{
-      toForm.map { form =>
-      	AjaxUtils.editable(super.asHtml, toForm.open_!, () => {fieldOwner.save; onSave})
-      } openOr super.asHtml
-    }</xml:group>
+trait AjaxEditableMapper[OwnerType <: Mapper[OwnerType]] extends Mapper[OwnerType] {
+  self : OwnerType =>
   
-  /** This method is called when the element's data are saved. The default is to do nothing */
-  def onSave {}
+  /**
+   * This list defines the fields that will be displayed as well as whether they will
+   * be editable. This allows you to mix editable and non-editable fields.
+   */
+  def displayFields : List[(MappedField[_,_],Boolean)]
+  
+  /** This method allows you to do programmatic control of whether the editable 
+   *  fields will display as editable. The default is true */
+  def editableFields = true
+  
+  /** This defines what content will wrap the fields in the display */
+  def displayWrap (fields : NodeSeq) : NodeSeq = fields
+  
+  /** This defines the format for each individual field in the display */
+  def displayField (label : NodeSeq, content : NodeSeq) : NodeSeq = 
+    label ++ Text(" : ") ++ content ++ <br />
+  
+  /** This method is called when the instance's data are saved. The default is to do nothing */
+  def onSave = {}
+  
+  override def asHtml = {
+    val fieldContent : NodeSeq = 
+      for ((field,editable) <- displayFields) yield {
+        val content : NodeSeq = 
+          if (editable && editableFields) {
+            <xml:group>{
+              field.toForm.map { form =>
+                SHtml.ajaxEditable(field.asHtml, field.toForm.open_!, () => {this.save; onSave})
+              } openOr field.asHtml
+            }</xml:group>
+          } else {
+            field.asHtml
+          }
+          
+        <xml:group>{displayField(Text(field.displayName),content)}</xml:group>
+      }
+    
+    displayWrap(fieldContent)
+  }
 }
 
 trait LoggedAjaxEditableField[FieldType,OwnerType <: Mapper[OwnerType]] extends AjaxEditableField[FieldType,OwnerType] {

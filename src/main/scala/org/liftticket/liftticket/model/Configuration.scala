@@ -15,15 +15,56 @@
  */
 package org.liftticket.liftticket.model
 
-import _root_.scala.xml.Text
+import _root_.scala.xml.{NodeSeq,Text}
 
 import _root_.net.liftweb.mapper._
 import _root_.net.liftweb.sitemap.{Loc,Menu,NullLocParams}
 import _root_.net.liftweb.common.{Empty}
-import _root_.net.liftweb.http.S
+import _root_.net.liftweb.http.{LiftRules,S,SessionVar,SHtml}
+import _root_.net.liftweb.common.{Box,Empty}
+import _root_.net.liftweb.util.Helpers._
 
+/**
+ * This object contains global configuration methods and definitions. It also deals
+ * with master password handling.
+ */
 object Configuration {
-  def sections = BaseConfig :: TicketConfig :: EmailConfig :: Nil
+  /* This is the per-VM master password. It doesn't get stored anywhere and is
+     only valid if set from the command line */
+  var masterPassword : Box[String] = None
+  
+  /* This indicates that the user has logged in with a master password and can
+     access all of the configuration sections as well as user administration */
+  object loggedInWithMasterPass extends SessionVar(false)
+  
+  // A simple method to log in against the master password
+  def authenticateMasterPassword (password : String) : Boolean = 
+    masterPassword map { mp =>
+      if (mp == password) {
+        loggedInWithMasterPass(true)
+        true
+      } else {
+        false
+      }
+    } openOr false
+  
+  // Define the various configuration sections
+  def sections = TicketConfig :: EmailConfig :: Nil
+  
+  /* Here we define the master menu for the configuration sections. The various 
+     subsections will show up as child menus */
+  def menus : List[Menu] = {
+	import Loc._
+
+    Menu(Loc("config-master", List("config", "index"), S.?("org.liftticket.config.title"), configMenuIf), sections.map {_.menu} : _*) ::
+    Menu(Loc("initialConfig", List("config", "initial"), S.?("org.liftticket.config.initialtitle"), Hidden)) :: Nil
+  }
+  
+  // Define a SiteMap helper to check on permissions
+  val configMenuIf = {
+    import Loc._
+    Loc.If(() => User.hasPermission(Permissions.EditConfiguration) || loggedInWithMasterPass.is, S.?("org.liftticket.msgs.nopermission"))
+  }
 }
 
 /**
@@ -32,49 +73,84 @@ object Configuration {
 class ConfigurationProperty extends LongKeyedMapper[ConfigurationProperty] with IdPK {
   def getSingleton = ConfigurationProperty
   
+  // The key of the configuration property. Generally, this is taken from the enum name
   object property extends MappedString(this,500)
+  
+  // The String value of the property
   object value extends MappedString(this,500)
 }
-object ConfigurationProperty extends ConfigurationProperty with LongKeyedMetaMapper[ConfigurationProperty]
+
+object ConfigurationProperty extends ConfigurationProperty with LongKeyedMetaMapper[ConfigurationProperty] {
+  // We set up a unique index on the property key so that we can't get duplicates
+  override def dbIndexes = UniqueIndex(property) :: Nil
+  
+  // A simple utility method to either retrieve the current key or set up a new instance
+  def getOrNew (name : String) = findAll(By(property, name)) match {
+    case Nil => ConfigurationProperty.create.property(name).value("")
+    case prop :: Nil => prop
+    case _ => throw new Exception("More than one instance found for " + name)
+  }
+}
 
 /** 
  * This class represents a given configuration section. It carries some extra
  * code to provide SiteMap and template functionality in common code.
  */
 sealed abstract class ConfigSection(val sectionName : String) extends Enumeration {
-  class FieldVal(name : String, val fieldType : FieldType.Value) extends Val(name)
+  /**
+   * This represents a special enumeration value that carries a validator and an error message if
+   * validation fails.
+   */
+  class FieldVal(name : String, val validator : String => Boolean, val failedValidationKey : String) extends Val(name)
   
-  def Value(name : String, fieldType : FieldType.Value) = new FieldVal(name, fieldType)
+  // We define another overload of the Value method to keep consistent with normal Enumeration usage
+  def Value(name : String, validator : String => Boolean, msgKey : String) = new FieldVal(name, validator, msgKey)
   
-  // Each config section will get its own Loc to simplify menu and page generation
-  val menu = Menu(new Loc[NullLocParams] {
-	import Loc._
-    def name = "config." + sectionName
-    def text = S.?(propertyBase + ".title")
-    def link = List[String]("config", sectionName)
-	def defaultParams = Empty
-	def params = Loc.If(() => User.hasPermission(Permissions.EditConfiguration), 
-                        "org.liftticket.msg.nopermission") :: Nil
-    /*
-    def template = 
-    def snippets = {
-      case "view" =>
+  // Each config section will get its own Menu to simplify menu and page generation
+  val menu = {
+    import Loc._
+    Menu(Loc("config." + sectionName, List[String]("config", sectionName), S.?(propertyBase + ".title"),
+         // Instead of using a programmatic template here, we can leverage LiftRules to pull a common template from the WAR
+         Template(() => LiftRules.loadResourceAsXml("/templates-hidden/config-template.html") openOr Text("Not found!")),
+         Snippet("view", { xhtml : NodeSeq => 
+           bind("config", xhtml, "content" -> fieldContent(chooseTemplate("config", "content", xhtml))) 
+         }),
+    	 Configuration.configMenuIf))
     }
-    */
-  })
   
+  /* We're defining a common field markup generator here to unclutter the menu val. */
+  private def fieldContent(template : NodeSeq) : NodeSeq = elements.toList.flatMap { field =>
+    val instance = ConfigurationProperty.getOrNew(field.toString)
+    
+    bind("field", template, 
+         "label" -> S.?(field.toString),
+    	 "field" -> SHtml.ajaxEditable(instance.value.asHtml, 
+                                       instance.value.toForm openOr instance.value.asHtml,
+                                       () => field match {
+                                         case f : FieldVal => {
+                                           if (f.validator(instance.value.is)) {
+                                             instance.save
+                                           } else {
+                                             S.error(S.?(f.failedValidationKey))
+                                           }
+                                         }
+                                         case _ => instance.save
+                                       }))
+  }
+  
+  // Generate a default base key name for message lookup, etc.
   val propertyBase = "org.liftticket.config.section." + sectionName
 }
 
-object BaseConfig extends ConfigSection("basic") {
-  /* This is essentially a "master" password for initial setup and emergency access.
-   * You can set it by setting a system property of the same name.
-   */
-  val ConfigPassword = Value("org.liftticket.config.password", FieldType.Password)
+object BaseConfig {
+  val ConfigPassword = "org.liftticket.config.masterpass"
 }
 
 object TicketConfig extends ConfigSection("ticket") {
-  val AttachmentPath = Value("org.liftticket.config.attachmentroot")
+  val AttachmentPath = Value("org.liftticket.config.attachmentroot", { path : String =>
+    val file = new _root_.java.io.File(path)
+    file.canWrite && file.isDirectory 
+  }, "org.liftticket.config.attachmentroot.invalid")
 }
  
 object EmailConfig extends ConfigSection("email") {
