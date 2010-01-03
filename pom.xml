@@ -41,7 +41,7 @@
     </dependency>
     <dependency>
       <groupId>net.liftweb</groupId>
-      <artifactId>lift-core</artifactId>
+      <artifactId>lift-webkit</artifactId>
       <version>1.1-SNAPSHOT</version>
     </dependency>
     <dependency>
@@ -78,6 +78,16 @@
     	<groupId>com.h2database</groupId>
     	<artifactId>h2</artifactId>
     	<version>1.2.122</version>
+    </dependency>
+    <dependency>
+    	<groupId>net.liftweb</groupId>
+    	<artifactId>lift-textile</artifactId>
+    	<version>1.1-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+    	<groupId>net.liftweb</groupId>
+    	<artifactId>lift-mapper</artifactId>
+    	<version>1.1-SNAPSHOT</version>
     </dependency>
   </dependencies>
   <developers>

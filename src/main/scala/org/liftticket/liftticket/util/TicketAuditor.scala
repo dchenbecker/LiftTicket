@@ -15,13 +15,14 @@
  */
 package org.liftticket.liftticket.util
 
-import _root_.scala.collection.mutable.HashMap
+import scala.collection.mutable.HashMap
 
-import _root_.net.liftweb.actor.LiftActor
-import _root_.net.liftweb.common.{Box,Empty,Full,SimpleActor}
-import _root_.net.liftweb.mapper.MappedField
-import _root_.net.liftweb.http.ListenerManager
-import _root_.org.liftticket.liftticket.model.{Ticket,TicketAuditEntry}
+import net.liftweb.actor.LiftActor
+import net.liftweb.common.{Box,Empty,Full,SimpleActor}
+import net.liftweb.mapper.MappedField
+import net.liftweb.http.ListenerManager
+import net.liftweb.util.Log
+import org.liftticket.liftticket.model.Ticket
 
 /**
  * This class encapsulates information about changes to a given ticket.
@@ -33,7 +34,7 @@ sealed case class TicketUpdate(ticket : Ticket, description : String, field : Bo
  */
 object TicketAuditor {
   def processTicketChange(update : TicketUpdate) {
-    
+    Log.info(update.toString)
   }
 }
 

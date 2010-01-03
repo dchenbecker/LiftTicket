@@ -28,16 +28,18 @@ import liftticket.model._
  * and user rights administration.
  */
 object UserAdmin {
+  private[liftticket] def canSeeAdminMenuTest () = 
+    User.hasPermission(Permissions.EditAllUsers) || Configuration.loggedInWithMasterPass.is
+  
   private[liftticket] def canSeeAdminMenu () = {
     import Loc._
-    
-    If (() => {User.hasPermission(Permissions.EditAllUsers) ||
-               Configuration.loggedInWithMasterPass.is}, S.?("org.liftticket.msgs.nopermission"))
+    If (canSeeAdminMenuTest, S.?("org.liftticket.msgs.nopermission"))
   }
   
   // This method ties all of the User admin menus together
   def menus : List[Menu] = {
     import Loc._
-    Menu(Loc("admin", List("admin","index"), S.?("User Administration"),canSeeAdminMenu), RoleAdmin.menus : _*) :: Nil
+    val children : List[Menu] = Role.menus ::: User.menus
+    Menu(Loc("admin", List("admin","index"), S.?("User Administration"),canSeeAdminMenu), children : _*) :: Nil
   } 
 }

@@ -15,14 +15,15 @@
  */
 package org.liftticket.liftticket.model
 
-import _root_.scala.xml.{NodeSeq,Text}
+import scala.xml.{NodeSeq,Text}
 
-import _root_.net.liftweb.mapper._
-import _root_.net.liftweb.sitemap.{Loc,Menu,NullLocParams}
-import _root_.net.liftweb.common.{Empty}
-import _root_.net.liftweb.http.{LiftRules,S,SessionVar,SHtml}
-import _root_.net.liftweb.common.{Box,Empty}
-import _root_.net.liftweb.util.Helpers._
+import net.liftweb.mapper._
+import net.liftweb.sitemap.{Loc,Menu}
+import net.liftweb.common.{Empty}
+import net.liftweb.http.{LiftRules,S,SessionVar,SHtml,js}
+import js.JsCmds
+import net.liftweb.common.{Box,Empty,Failure,Full}
+import net.liftweb.util.Helpers._
 
 /**
  * This object contains global configuration methods and definitions. It also deals
@@ -90,6 +91,13 @@ object ConfigurationProperty extends ConfigurationProperty with LongKeyedMetaMap
     case prop :: Nil => prop
     case _ => throw new Exception("More than one instance found for " + name)
   }
+  
+  // A simple utility method to retrieve the current key as a Box
+  def get (name : String) : Box[ConfigurationProperty] = findAll(By(property, name)) match {
+    case Nil => Empty
+    case prop :: Nil => Full(prop)
+    case _ => Failure("More than one instance found for " + name)
+  }
 }
 
 /** 
@@ -125,12 +133,13 @@ sealed abstract class ConfigSection(val sectionName : String) extends Enumeratio
     bind("field", template, 
          "label" -> S.?(field.toString),
     	 "field" -> SHtml.ajaxEditable(instance.value.asHtml, 
-                                       instance.value.toForm openOr instance.value.asHtml,
+                                       instance.value.toForm.map(JsCmds.FocusOnLoad(_)) openOr instance.value.asHtml,
                                        () => field match {
                                          case f : FieldVal => {
                                            if (f.validator(instance.value.is)) {
                                              instance.save
                                            } else {
+                                             instance.value(instance.value.was) // reset the value
                                              S.error(S.?(f.failedValidationKey))
                                            }
                                          }
@@ -146,14 +155,14 @@ object BaseConfig {
   val ConfigPassword = "org.liftticket.config.masterpass"
 }
 
-object TicketConfig extends ConfigSection("ticket") {
+object TicketConfig extends ConfigSection("ticketconfig") {
   val AttachmentPath = Value("org.liftticket.config.attachmentroot", { path : String =>
     val file = new _root_.java.io.File(path)
     file.canWrite && file.isDirectory 
   }, "org.liftticket.config.attachmentroot.invalid")
 }
  
-object EmailConfig extends ConfigSection("email") {
+object EmailConfig extends ConfigSection("emailconfig") {
   val EmailOutboundServer = Value("org.liftticket.config.emailoutserver")
   val EmailOutboundPort = Value("org.liftticket.config.emailoutport")
   val EmailOutboundUser = Value("org.liftticket.config.emailoutuser")

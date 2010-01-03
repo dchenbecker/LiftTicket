@@ -15,11 +15,13 @@
  */
 package org.liftticket.liftticket.model
 
-import _root_.scala.xml.NodeSeq
+import _root_.scala.xml.{NodeSeq,Text}
 
 import _root_.net.liftweb.mapper._
 import _root_.net.liftweb.common.{Box,Empty,Full}
 import _root_.net.liftweb.http.SHtml
+
+import liftticket.snippet.UserAdmin
 
 /**
  * This class represents a role that aggregates permissions to simplify the
@@ -28,7 +30,10 @@ import _root_.net.liftweb.http.SHtml
 class Role extends LongKeyedMapper[Role] with IdPK with OneToMany[Long,Role] {
   def getSingleton = Role
   
-  object name extends MappedString(this, 200)
+  object name extends MappedString(this, 200) {
+    override def displayName = "Name"
+  }
+  private def thisRole = this
   object permissions extends MappedOneToMany(RolePermission,RolePermission.role)
   	with Owned[RolePermission] with Cascade[RolePermission] {
   	  def toForm : NodeSeq = {
@@ -37,6 +42,7 @@ class Role extends LongKeyedMapper[Role] with IdPK with OneToMany[Long,Role] {
         val allChoices = Permissions.elements.toList.map {perm => (perm.id.toString,perm.toString)}
         
         SHtml.multiSelect(allChoices, currentChoices, { selected : List[String] =>
+                            thisRole.save
                             this.clear
                             selected.foreach { item =>
                               val newPerm = RolePermission.create.permission(Permissions(item.toInt))
@@ -44,9 +50,21 @@ class Role extends LongKeyedMapper[Role] with IdPK with OneToMany[Long,Role] {
                             }
                           })
   	  }
+     
+      def asHtml : NodeSeq = this.all.flatMap{ perm => Text(perm.permission.toString) ++ <br/>}
   	}
 }
-object Role extends Role with LongKeyedMetaMapper[Role]
+object Role extends Role with LongKeyedMetaMapper[Role] with CRUDOps[Long,Role] {
+  val instanceName = "Role"
+  
+  override def calcFields = 
+    defaultField(name) :: 
+    Field(Text("Permissions"), true, true, _.permissions.toForm, _.permissions.asHtml) :: Nil
+  
+  override def calcCheckPermissions = {
+    case _ => CRUDPermissions(UserAdmin.canSeeAdminMenuTest)
+  }
+}
 
 /**
  * A class that represents a permission for a role.

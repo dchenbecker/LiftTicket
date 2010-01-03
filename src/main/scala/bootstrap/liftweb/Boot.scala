@@ -52,8 +52,24 @@ class Boot {
     }
   
     // Construct our model as needed
-    Schemifier.schemify(true, Log.infoF _, ConfigurationProperty, Module, User,
-                        UserPermission, UserRole, Role, RolePermission)
+    Schemifier.schemify(true, Log.infoF _,
+                        ConfigurationProperty,
+                        Module,
+                        ModuleRelease,
+                        User,
+                        UserPermission,
+                        UserRole,
+                        Role,
+                        RolePermission,
+                        Ticket,
+                        TicketStatus,
+                        TicketSeverity,
+                        TicketDependency,
+                        TicketOwner,
+                        TicketFollower,
+                        TicketComment,
+                        TicketCommentAttachment
+    )
   
     /* If a config password is specified as a system property, we set it */
     System.getProperty(BaseConfig.ConfigPassword) match {
@@ -62,6 +78,8 @@ class Boot {
         Configuration.masterPassword = Full(newPass)
         Log.info("The master password has been set. Please restart the app as soon as you're done configuring it.")
     }
+    
+    checkDefaultMetadata()
   
     // Finally, set up our SiteMap
     LiftRules.setSiteMap(SiteMap(buildMenus : _*))
@@ -70,9 +88,39 @@ class Boot {
   // A utility method to construct our SiteMap
   def buildMenus : List[Menu] = 
     Menu(Loc("home", List("index"), S.?("Home"))) ::
+    Ticket.menus :::
     User.sitemap :::
     UserAdmin.menus :::
+    Module.menus :::
+    ModuleRelease.menus :::
+    Ticket.configMenus :::
     Configuration.menus
+  
+  /**
+   * This method makes sure that we have some ticket metadata (status, severity, etc)
+   * in the database. If nothing exists it will populate with default values.
+   */
+  def checkDefaultMetadata() {
+    if (TicketStatus.findAll.isEmpty) {
+      Log.info("Adding default ticket status codes")
+      TicketStatus.create.name("New").is_default(true).save
+      TicketStatus.create.name("Incomplete").is_default(false).save
+      TicketStatus.create.name("Invalid").is_default(false).save
+      TicketStatus.create.name("Won't Fix").is_default(false).save
+      TicketStatus.create.name("Confirmed").is_default(false).save
+      TicketStatus.create.name("Triaged").is_default(false).save
+      TicketStatus.create.name("Confirmed").is_default(false).save
+      TicketStatus.create.name("Fix Comitted").is_default(false).save
+      TicketStatus.create.name("Fix Release").is_default(false).save
+    }
+    
+    if (TicketSeverity.findAll.isEmpty) {
+      Log.info("Adding default ticket severities")
+      TicketSeverity.create.name("Low").is_default(false).save
+      TicketSeverity.create.name("Medium").is_default(true).save
+      TicketSeverity.create.name("High").is_default(false).save
+    }
+  }
 }
 
 

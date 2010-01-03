@@ -15,7 +15,15 @@
  */
 package org.liftticket.liftticket.model
 
-import _root_.net.liftweb.mapper._
+import scala.xml.{NodeSeq,Text}
+
+import net.liftweb.mapper._
+
+import net.liftweb.http.SHtml
+
+import net.liftweb.common.Full
+
+import net.liftweb.util.Log
 
 /**
  * For now we'll just build on MegaProtoUser. At some point we may need to
@@ -24,11 +32,55 @@ import _root_.net.liftweb.mapper._
  */
 class User extends MegaProtoUser[User] with OneToMany[Long,User] with ManyToMany {
   def getSingleton = User
-  
-  object permissions extends MappedOneToMany(UserPermission, UserPermission.user) 
-    with Owned[UserPermission] with Cascade[UserPermission]
+
+  private def thisUser = this
     
-  object roles extends MappedManyToMany(UserRole, UserRole.user, UserRole.role, Role)
+  object permissions extends MappedOneToMany(UserPermission, UserPermission.user) 
+      with Owned[UserPermission] with Cascade[UserPermission] {
+    def toForm : NodeSeq = {
+  	  val currentChoices = this.all.map(_.permission.is.id.toString).toSeq 
+        
+      val allChoices = Permissions.elements.toList.map {perm => (perm.id.toString,perm.toString)}
+        
+      SHtml.multiSelect(allChoices, currentChoices, 
+                        { selected : List[String] =>
+                          thisUser.save // Force parent save so that there's a PK for the one-to-many
+                          this.clear
+                          selected.foreach { item =>
+                            val newPerm = UserPermission.create.permission(Permissions(item.toInt))
+                            this += newPerm
+                          }
+                        })
+  	}
+    
+    private def permEntry (perm : UserPermission) : NodeSeq = Text(perm.permission.toString) ++ <br/>
+    private def permEntry (perm : RolePermission) : NodeSeq = Text("*" + perm.permission.toString) ++ <br/>
+    
+    def asHtml = this.all.flatMap(permEntry) ++
+      roles.all.flatMap{ role => role.permissions.all.flatMap(permEntry) }
+  }
+  
+  object roles extends MappedManyToMany(UserRole, UserRole.user, UserRole.role, Role) {
+    def toForm : NodeSeq = {
+  	  val currentChoices = this.all.map(_.id.toString).toSeq 
+        
+      val allChoices = Role.findAll.map {role => (role.id.toString,role.name.is)}
+        
+      SHtml.multiSelect(allChoices, currentChoices, 
+                        { selected : List[String] =>
+                          thisUser.save // Force parent save so that there's a PK for the many-to-many
+                          this.clear
+                          selected.foreach { item =>
+                            Role.find(item) match {
+                              case Full(role) => this += role
+                              case _ => Log.error("Could not locate role for user perms editing : " + item)
+                            }
+                          }
+                        })
+  	}
+    
+    def asHtml = this.all.flatMap{ role => Text(role.name.toString) ++ <br/>}
+  }
   
   def hasPermission(perm : Permissions.Value) = permissions.all.exists(_.permission == perm) ||
     roles.all.exists(_.permissions.all.exists(_.permission == perm))
@@ -38,9 +90,23 @@ class User extends MegaProtoUser[User] with OneToMany[Long,User] with ManyToMany
  * Define the singleton for our User entity. Nothing special here, just some
  * custom retrieval methods.
  */
-object User extends User with MetaMegaProtoUser[User] {
+object User extends User with MetaMegaProtoUser[User] with CRUDOps[Long,User] {
+  override def screenWrap = 
+    Full(<lift:surround with="default" at="content"><div id="formBox"><lift:bind /></div></lift:surround>)
+
+  val instanceName = "User"
+  
+  override def calcFields = 
+    List(firstName, lastName, email, locale, timezone).map(defaultField) :::
+    Field(password.displayNameHtml openOr Text("Password"), true, false, _.password.toForm openOr Text(""), _.password.asHtml) ::
+    Field(Text("Validated"), true, true, _.validated.toForm openOr Text(""), _.validated.asHtml) ::
+    Field(Text("Permissions"), true, true, _.permissions.toForm, _.permissions.asHtml) ::
+    Field(Text("Roles"), true, true, _.roles.toForm, _.roles.asHtml) :: Nil
+  
   override def hasPermission(perm : Permissions.Value) =
     currentUser.map(_.hasPermission(perm)) openOr false
+  
+  override def menus = super[CRUDOps].menus
 }
 
 /**

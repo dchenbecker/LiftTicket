@@ -26,9 +26,10 @@ object Permissions extends Enumeration {
   val CreateTicket = Value(3, "Create Ticket")
   val EditTicketFollow = Value(4, "Follow/Unfollow Ticket")
   val EditTicketOwner = Value(5, "Edit Ticket Ownership")
-  val EditTicketStatus = Value(6, "Edit Ticket Status")
+  val EditTicketMetadata = Value(6, "Edit Ticket Metadata")
   
   // Administration permissions
   val EditAllUsers = Value(7, "Edit All Users")
   val EditConfiguration = Value(8,"Edit Configuration")
+  val EditTicketMetaData = Value(9,"Edit Ticket MetaData")
 }

@@ -1,9 +1,10 @@
 package org.liftticket.liftticket.snippet
 
-import _root_.scala.xml.NodeSeq
+import scala.xml.NodeSeq
 
-import _root_.net.liftweb.http.{S,SHtml}
-import _root_.net.liftweb.util.Helpers._
+import net.liftweb.http.{js,S,SHtml}
+import js.JsCmds.FocusOnLoad
+import net.liftweb.util.Helpers._
 
 import liftticket.model.Configuration
 
@@ -21,6 +22,6 @@ class InitialConfig {
       }
     }
     
-    bind("login", xhtml, "pass" -> SHtml.password("", doLogin))
+    bind("login", xhtml, "pass" -> FocusOnLoad(SHtml.password("", doLogin)))
   }
 }
